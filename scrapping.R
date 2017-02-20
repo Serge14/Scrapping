@@ -38,19 +38,24 @@ vegs$priceMeasure = sub(".*/", "", vegPrice)
 vegs$Size = regmatches(vegNames,gregexpr("[[:digit:]]+\\.*[[:digit:]]*[кг]+",vegNames))
 # doesn't work as it has to, selects only 
 vegs$Size2 = regmatches(vegNames,gregexpr("[[:digit:]]+\\.*[[:digit:]]*", vegNames))
+vegs$UOM = regmatches(vegs$Size,gregexpr("[кг]+",vegs$Size))
 
 vegs$Size2[vegs$priceMeasure == "кг"] = 1
+vegs$UOM[vegs$UOM == "character(0)"] = ""
+vegs$UOM[vegs$priceMeasure == "кг" & vegs$UOM == ""] = "кг"
 
-
-vegs$UOM[vegs$priceMeasure == "кг"] = "кг"
-vegs$UOM = regmatches(vegs$Size,gregexpr("[кг]+",vegs$Size))
-vegs$Cat = regmatches(vegs$Names,gregexpr("[Морковь]",vegs$Names))
+vegs$Cat = regmatches(vegs$Names,gregexpr("[Помидор]",vegs$Names))
 vegs
 
 
 vegs$Size = as.character(vegs$Size)
 vegs$Size2 = as.numeric(vegs$Size2)
 vegs$UOM = as.character(vegs$UOM)
+
+vegs$Size[vegs$Size == "character(0)"] = ""
+
+vegs$modifiedPrice[vegs$UOM == "кг"] = vegs$vegPrice/vegs$Size2
+vegs$modifiedPrice[vegs$UOM == "г"] = 1000*vegs$vegPrice/vegs$Size2
 
 write.csv(vegs, "vegs.csv")
 # Another way to scrap multiple pages
