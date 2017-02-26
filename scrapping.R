@@ -44,20 +44,32 @@ vegs$Size2[vegs$priceMeasure == "кг"] = 1
 vegs$UOM[vegs$UOM == "character(0)"] = ""
 vegs$UOM[vegs$priceMeasure == "кг" & vegs$UOM == ""] = "кг"
 
-vegs$Cat = regmatches(vegs$Names,gregexpr("[Помидор]",vegs$Names))
-vegs
-
-
 vegs$Size = as.character(vegs$Size)
 vegs$Size2 = as.numeric(vegs$Size2)
 vegs$UOM = as.character(vegs$UOM)
 
 vegs$Size[vegs$Size == "character(0)"] = ""
 
-vegs$modifiedPrice[vegs$UOM == "кг"] = vegs$vegPrice/vegs$Size2
-vegs$modifiedPrice[vegs$UOM == "г"] = 1000*vegs$vegPrice/vegs$Size2
+vegs$modifiedPrice = ifelse(vegs$UOM == "кг", vegs$vegPrice/vegs$Size2,
+                     ifelse(vegs$UOM == "г", 1000*vegs$vegPrice/vegs$Size2, NA))
+                                
+vegs$Category = "Vegetables"
+vegs$SubCategory = 
+    
+    ifelse(str_detect(vegs$vegNames, "Картофель"), 
+    
+)
 
-write.csv(vegs, "vegs.csv")
+vegs$Date = Sys.Date()
+
+vegs
+
+
+
+
+write.csv(vegs, "vegs.csv", row.names = FALSE)
+write.table(vegs, "vegs.csv", row.names = FALSE, append = TRUE, na="NA", 
+            quote= FALSE, sep = ",", col.names = FALSE)
 # Another way to scrap multiple pages
 
 setwd("/home/sergiy/Documents/Work/Scrapping")
