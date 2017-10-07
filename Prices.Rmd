@@ -1,0 +1,274 @@
+---
+title: "Cost of Food Basket"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    social: menu
+    smooth_scroll: true
+    source_code: embed
+    overflow: auto
+    theme: yeti
+runtime: shiny
+---
+  
+```{r global, include=FALSE}
+library(flexdashboard)
+library(shiny)
+library(data.table)
+library(xts)
+library(dygraphs)
+library(ggplot2)
+library(RColorBrewer)
+
+data = read.csv("data.csv", stringsAsFactors = FALSE, 
+                colClasses = c("character", "character", "numeric", "character", "Date"))
+
+```
+
+Dashboard
+====================================================================  
+   
+Column {data-width=350}
+-------------------------------------
+    
+### Options
+```{r}
+selectInput("country", "Select Country:", 
+            choices = "Ukraine", 
+            selected = "Ukraine")
+
+selectInput("productCategory", "Product Category:", 
+            choices = unique(data$normCategory), 
+            selected = "Food Basket")
+           
+radioButtons("radio1", "Minimal or Avergae Cost:", 
+             choices = unique(data$Type), 
+             selected = "Minimum")
+
+radioButtons("radio2", "Currency:", 
+             choices = c("₴"), #, "€", "$"), 
+             selected = "₴")
+```
+
+
+```{r}
+maxDate = max(data$Date)
+
+# Max date minus 1 year
+maxDateYAGO = as.POSIXlt(maxDate)
+maxDateYAGO$year = maxDateYAGO$year - 1
+maxDateYAGO = as.Date(maxDateYAGO)
+```
+
+
+```{r}
+selectedData <- reactive({
+    data = data[data$normCategory == input$productCategory & data$Type == input$radio1, c(3,5)]
+    data = data[, 2:1]
+    #data$Date = as.Date(data$Date)
+    as.xts(data[-1], order.by = data$Date)
+})
+
+selectedData2 <- reactive({
+    data2 = data[data$Date > maxDateYAGO & data$Date <= maxDate & data$Type == input$radio1 & data$normCategory != "Food Basket", c(2,3)]
+    data2 = aggregate(modifiedPrice ~ normCategory, data2, mean)
+    
+    convertion = c(0.005, 0.33, 0.1, 0.025, 0.6666667, 0.05, 0.22, 0.192, 0.45, 0.535,
+                   0.035, 0.015, 0.265, 0.015, 0.075, 0.35)
+    
+    data2$Expenditure = data2$modifiedPrice * convertion
+    data2$Share = 100*data2$Expenditure/sum(data2$Expenditure)
+    
+    return(data2)
+})
+```
+   
+```{r}
+selectedData3 <- reactive({
+    data3 = data[data$Date > maxDateYAGO & data$Date <= maxDate & data$Type == input$radio1 & data$normCategory != "Food Basket", c(2,3)]
+    
+    data3 = as.data.table(data3)
+    data3[, mean(modifiedPrice), by = normCategory]
+
+    convertion = c(0.265, 0.35, 0.1, 0.22, 0.33, 0.45, 0.535, 0.6666667, 0.192, 0.015,
+                   0.025, 0.005, 0.075, 0.015, 0.035, 0.05)
+    data3$Expenditure = data3$V1 * convertion
+    data3[, Share := 100*Expenditure/sum(Expenditure)]
+    return(data3)
+})
+```
+
+Column {data-width=1300}
+-------------------------------------
+   
+### Current Cost of Food Basket {data-height=70}
+
+```{r}
+daily = renderText({round(data$modifiedPrice[data$Date == max(data$Date) & 
+                                        data$normCategory == "Food Basket" & 
+                                        data$Type == input$radio1], 2)})
+
+
+monthly = renderText(round(30*mean(data$modifiedPrice[data$Date <= max(data$Date) & 
+                                        data$Date > (max(data$Date)-30) &             
+                                        data$normCategory == "Food Basket" & 
+                                        data$Type == input$radio1]), 2))
+
+yearly = renderText(round(365*mean(data$modifiedPrice[data$Date <= max(data$Date) & 
+                                        data$Date > (max(data$Date)-30) &             
+                                        data$normCategory == "Food Basket" & 
+                                        data$Type == input$radio1]), 4))
+```
+
+
+```{r} 
+renderPlot({ggplot() + 
+  annotate("text", x = 0.1, y = 1, size = 5, label = "Daily: ") +
+  annotate("text", x = 0.9, y = 1, size=8, label = paste(input$radio2, daily()), colour = "deepskyblue4", fontface = 2) +
+  annotate("text", x = 2.5, y = 1, size = 5, label = "Monthly: ") +
+  annotate("text", x = 3.6, y = 1, size=8, label = paste(input$radio2, monthly()), colour = "deepskyblue4", fontface = 2) +
+  annotate("text", x = 5, y = 1, size = 5, label = "Annually: ") +
+  annotate("text", x = 6.3, y = 1, size=8, label = paste(input$radio2, yearly()), colour = "deepskyblue4", fontface = 2) +
+        xlim(0, 7) +
+        theme_minimal() + 
+          theme(plot.background = element_blank(), 
+                panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                panel.border = element_blank(),
+   axis.text.x=element_blank(),
+   axis.text.y=element_blank(),
+   axis.ticks=element_blank(),
+    axis.title.x=element_blank(),
+   axis.title.y=element_blank())})
+```   
+ 
+### Daily Cost Over Time
+    
+```{r}
+chartTitle = renderText({
+    if (input$productCategory == "Food Basket") {" Daily Cost of "}
+        else {" Price of "}
+})
+
+renderDygraph({
+   dygraph(selectedData(), 
+           main = paste0(input$radio1, chartTitle(), input$productCategory, " in ", 
+                         input$country, " (", input$radio2, ")")) %>%
+        dyAxis("y", valueRange = c(0, 1.1*max(selectedData()$modifiedPrice))) %>%
+        dySeries(label = "Adults") %>%
+       dyOptions(colors = RColorBrewer::brewer.pal(3, "Set1"))
+})
+``` 
+
+Column {.tabset}
+-------------------------------------
+### Expenditures, %
+
+```{r}
+renderPlot({
+ggplot(selectedData2(), aes(x = reorder(normCategory, Share), y = Share)) + 
+        geom_bar(stat = "identity", fill = "#FFDA89", alpha = .85, width = .7) +  ##9999CC
+     theme_bw() + 
+          theme(text = element_text(size=14),
+                plot.background = element_blank(), 
+                panel.grid.major = element_blank(),
+                panel.grid.minor = element_blank(),
+                panel.border = element_blank(),
+   axis.text.x=element_blank(),
+   axis.ticks=element_blank(),
+    axis.title.x=element_blank(),
+   axis.title.y=element_blank()) +
+        geom_text(aes(label = round(Share)), hjust = -0.1) +
+        coord_flip()
+})
+```
+
+
+### Y-o-Y Evolution, %
+
+Not enough data has been collected yet for calculating year-on-year evolution. The chart will be available as of May 2, 2018.
+
+Methodology
+======================================================================
+
+**Purpose**
+
+Provide all interested with data on the cost of food basket in the easy to use and intuitive web-tool.
+<br><br>
+
+**Countries**
+
+There is an option to choose countries for analysis, but data for Ukraine only are available at the moment.
+<br><br>
+
+**Method**
+
+Scientists have developed a number of daily sets of products for average adults and children. Sets provide the optimal content of basic nutrients in the optimal ratio. For this project one of the most detailed has been chosen. It implies following daily consumption:
+
+No  |Category        | Units     | Adults    | Children  | Comments     |
+:---|:---------------|:----------|:----------|:----------|:-------------|------  
+1   |Bread           |kg         |0.33       |           |              |
+2   |Pasta           |kg         |0.015      |           |              |
+3   |Cereals         |kg         |0.025      |           |              |
+4   |Beans           |kg         |0.005      |           |              |
+5   |Potato          |kg         |0.265      |           |              |
+6   |Vegetables      |kg         |0.35       |           |              |
+7   |Cabbage         |kg         |0.1        |           |              |
+8   |Fruits          |kg         |0.22       |           |              |
+9   |Sugar           |kg         |0.075      |           |              |
+10  |Oil             |lt         |0.035      |           |              |
+11  |Meat            |kg         |0.192      |           |              |
+12  |Fish            |kg         |0.05       |           |              |
+13  |Milk            |lt         |0.45       |           |              |
+14  |Milk Products   |kg         |0.535      |           |incl. hard cheese  |
+15  |Eggs            |item       |2/3        |           |              |
+16  |Salt            |kg         |0.015      |           |              |
+
+**Data**
+
+To calculate the cost of a food basket the daily prices of online stores have been used. Of course, different price and assortment policies could be deployed for online and offline stores even within the same retailer. For example, online stores usually don't provide discounts for slightly damaged products. But online data still give a good insight into price level of food and non-food products.
+
+All collected SKUs are grouped into categories and their prices are converted into comparable units (1 kg or 1 lt or 1 unit). For each category minimum and average prices are calculated. The price of the cheapest product is considered as the minimum price of a category. Average category price is calculated as the mean prices of all products that comprise the category.
+
+The content of the category is extremely important. It affects minimum and average prices which are then used to calculate expenditures. For example, cheese may be attributed to Milk Products but can be also considered as a separate category. By the way, in this project cheese is part of Milk Products category.
+<br><br>
+
+**Measures**
+
+- *Minimum Daily Cost of Food Basket (MDCFB)* – the sum of products minimum price by each category and necessary daily consumption.
+
+- *Average Daily Cost of Food Basket (ADCFB)* - the sum of products average price by each category and necessary daily consumption.
+
+- *Minimum Monthly Cost of Food Basket* – the mean of MDCFB for last 30 days multiplied by 30. Here and below this approach has been used to minimize the effect of missing data.
+
+- *Average Monthly Cost of Food Basket* - the mean of ADCFB for last 30 days multiplied by 30.
+
+- *Minimum Annual Cost of Food Basket* - the mean of MDCFB for last 365 days multiplied by 365.
+
+- *Average Annual Cost of Food Basket* - the mean of ADCFB for last 365 days multiplied by 365.
+
+- *Minimum Price of Products in a Category* - is the price of the cheapest product in a category.
+
+- *Average Price of Products in a Category* - the mean of prices of all products in a category.
+
+- *Split of Expenditures by Categories* – calculated on the basis of MAT data. Total annual expenditures (minimum or average) by each category is divided by total cost of a food basket and multiplied by 100.
+
+- *Y-o-Y Evolution* (not enough data for calculations).
+<br><br>
+
+**Future plans**
+
+- Add calculations for children (expenditures are expected to be higher than for adults)
+- Add recalculations in USD & EUR
+- Add non-food basket (need help to form the product list, please contact me if you have any ideas)
+- Add cost predictions
+- Add other countries (Russia, Poland & Germany are considered)
+
+
+
+Contact
+============================================================================
+
+You may contact Sergiy Obukhov, the author of this project, by e-mail: sobukhov@gmail.com 
+
+Any ideas which can improve the project are much appreciated!
