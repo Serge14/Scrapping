@@ -193,7 +193,7 @@ Methodology
 
 **Purpose**
 
-Provide all interested with data on the cost of food basket in the easy to use and intuitive web-tool.
+Provide all interested with data on the cost of food basket through the easy to use and intuitive web-tool.
 <br><br>
 
 **Countries**
