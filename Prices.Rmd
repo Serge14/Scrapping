@@ -65,7 +65,6 @@ maxDateYAGO = as.Date(maxDateYAGO)
 selectedData <- reactive({
     data = data[data$normCategory == input$productCategory & data$Type == input$radio1, c(3,5)]
     data = data[, 2:1]
-    #data$Date = as.Date(data$Date)
     as.xts(data[-1], order.by = data$Date)
 })
 
@@ -183,7 +182,6 @@ ggplot(selectedData2(), aes(x = reorder(normCategory, Share), y = Share)) +
 })
 ```
 
-
 ### Y-o-Y Evolution, %
 
 Not enough data has been collected yet for calculating year-on-year evolution. The chart will be available as of May 2, 2018.
@@ -263,7 +261,6 @@ The content of the category is extremely important. It affects minimum and avera
 - Add non-food basket (need help to form the product list, please contact me if you have any ideas)
 - Add cost predictions
 - Add other countries (Russia, Poland & Germany are considered)
-
 
 
 Contact
